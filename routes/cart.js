@@ -1,43 +1,46 @@
+// ~/storage/shared/shopeasy-backend/routes/cart.js
 const express = require('express');
 const router = express.Router();
-const Cart = require('../models/Cart');
-const authMiddleware = require('../middleware/auth');
+const auth = require('../middleware/auth');
+const User = require('../models/User');
+const Product = require('../models/Product');
 
-router.get('/', authMiddleware, async (req, res) => {
+router.post('/add', auth, async (req, res) => {
+  const { productId, quantity } = req.body;
   try {
-    const cart = await Cart.findOne({ userId: req.user.id });
-    res.json(cart || { products: [] });
+    const user = await User.findById(req.user.id);
+    const product = await Product.findById(productId);
+    if (!product) return res.status(404).json({ message: 'Product not found' });
+
+    const itemIndex = user.cart.findIndex(item => item.productId.toString() === productId);
+    if (itemIndex > -1) {
+      user.cart[itemIndex].quantity += quantity;
+    } else {
+      user.cart.push({ productId, quantity });
+    }
+    await user.save();
+    res.json({ message: 'Added to cart' });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-router.post('/add', authMiddleware, async (req, res) => {
-  const { productId, name, price, image } = req.body;
+router.get('/', auth, async (req, res) => {
   try {
-    let cart = await Cart.findOne({ userId: req.user.id });
-    if (!cart) {
-      cart = new Cart({ userId: req.user.id, products: [] });
-    }
-
-    if (!cart.products.some(p => p.productId === productId)) {
-      cart.products.push({ productId, name, price, image });
-      await cart.save();
-    }
-    res.json(cart);
+    const user = await User.findById(req.user.id).populate('cart.productId');
+    res.json({ items: user.cart });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-router.delete('/remove/:productId', authMiddleware, async (req, res) => {
+router.post('/remove', auth, async (req, res) => {
+  const { productId } = req.body;
   try {
-    const cart = await Cart.findOne({ userId: req.user.id });
-    if (cart) {
-      cart.products = cart.products.filter(p => p.productId !== req.params.productId);
-      await cart.save();
-    }
-    res.json(cart || { products: [] });
+    const user = await User.findById(req.user.id);
+    user.cart = user.cart.filter(item => item.productId.toString() !== productId);
+    await user.save();
+    res.json({ message: 'Removed from cart' });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
