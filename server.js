@@ -1,3 +1,4 @@
+require('dotenv').config();
 // ~/storage/shared/shopeasy-backend/server.js
 const express = require('express');
 const cors = require('cors');
